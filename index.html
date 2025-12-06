@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hivanix - Image Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            max-height: 600px;
+        }
+
+        #canvas {
+            max-width: 100%;
+            max-height: 600px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+
+        .crop-overlay {
+            position: absolute;
+            border: 2px dashed #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            cursor: move;
+            display: none;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+        .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tool-btn {
+            transition: all 0.3s ease;
+        }
+
+        .tool-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .tool-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .filter-btn {
+            min-width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .filter-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 3px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-palette text-3xl"></i>
+                    <h1 class="text-2xl font-bold">Hivanix Edits</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="downloadBtn" class="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center space-x-2">
+                        <i class="fas fa-download"></i>
+                        <span>Download</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-6 py-8">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Sidebar - Tools -->
+            <div class="col-span-12 lg:col-span-3">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800">Tools</h2>
+                    
+                    <!-- Tool Tabs -->
+                    <div class="space-y-2 mb-6">
+                        <button class="tool-btn w-full text-left px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center space-x-3 active" data-tab="adjust">
+                            <i class="fas fa-sliders-h"></i>
+                            <span>Adjust</span>
+                        </button>
+                        <button class="tool-btn w-full text-left px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center space-x-3" data-tab="crop">
+                            <i class="fas fa-crop"></i>
+                            <span>Crop</span>
+                        </button>
+                        <button class="tool-btn w-full text-left px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center space-x-3" data-tab="resize">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                            <span>Resize</span>
+                        </button>
+                        <button class="tool-btn w-full text-left px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center space-x-3" data-tab="rotate">
+                            <i class="fas fa-redo"></i>
+                            <span>Rotate & Flip</span>
+                        </button>
+                        <button class="tool-btn w-full text-left px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center space-x-3" data-tab="filters">
+                            <i class="fas fa-magic"></i>
+                            <span>Filters</span>
+                        </button>
+                    </div>
+
+                    <!-- Adjust Tab -->
+                    <div id="adjust-tab" class="tab-content active">
+                        <div class="space-y-4">
+                            <div class="slider-container">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Brightness</label>
+                                <input type="range" id="brightness" min="-100" max="100" value="0" class="w-full">
+                                <span id="brightnessValue" class="text-xs text-gray-500">0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Contrast</label>
+                                <input type="range" id="contrast" min="-100" max="100" value="0" class="w-full">
+                                <span id="contrastValue" class="text-xs text-gray-500">0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Saturation</label>
+                                <input type="range" id="saturation" min="-100" max="100" value="0" class="w-full">
+                                <span id="saturationValue" class="text-xs text-gray-500">0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Blur</label>
+                                <input type="range" id="blur" min="0" max="10" value="0" step="0.5" class="w-full">
+                                <span id="blurValue" class="text-xs text-gray-500">0</span>
+                            </div>
+                            <div class="slider-container">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Hue</label>
+                                <input type="range" id="hue" min="0" max="360" value="0" class="w-full">
+                                <span id="hueValue" class="text-xs text-gray-500">0</span>
+                            </div>
+                            <button id="resetAdjustments" class="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">
+                                <i class="fas fa-undo"></i> Reset All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Crop Tab -->
+                    <div id="crop-tab" class="tab-content">
+                        <div class="space-y-4">
+                            <p class="text-sm text-gray-600 mb-3">Drag on the canvas to select crop area</p>
+                            <button id="applyCrop" class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition">
+                                <i class="fas fa-check"></i> Apply Crop
+                            </button>
+                            <button id="cancelCrop" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <div class="mt-4">
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Aspect Ratio</label>
+                                <select id="aspectRatio" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="free">Free</option>
+                                    <option value="1:1">Square (1:1)</option>
+                                    <option value="4:3">4:3</option>
+                                    <option value="16:9">16:9</option>
+                                    <option value="3:2">3:2</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resize Tab -->
+                    <div id="resize-tab" class="tab-content">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Width (px)</label>
+                                <input type="number" id="resizeWidth" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Width">
+                            </div>
+                            <div>
+                                <label class="text-sm font-semibold text-gray-700 mb-2 block">Height (px)</label>
+                                <input type="number" id="resizeHeight" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Height">
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="maintainAspect" checked class="mr-2">
+                                <label class="text-sm text-gray-700">Maintain aspect ratio</label>
+                            </div>
+                            <button id="applyResize" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition">
+                                <i class="fas fa-check"></i> Apply Resize
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rotate Tab -->
+                    <div id="rotate-tab" class="tab-content">
+                        <div class="space-y-4">
+                            <button id="rotate90" class="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition">
+                                <i class="fas fa-redo"></i> Rotate 90° Right
+                            </button>
+                            <button id="rotate-90" class="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition">
+                                <i class="fas fa-undo"></i> Rotate 90° Left
+                            </button>
+                            <button id="flipH" class="w-full bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-600 transition">
+                                <i class="fas fa-arrows-alt-h"></i> Flip Horizontal
+                            </button>
+                            <button id="flipV" class="w-full bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-600 transition">
+                                <i class="fas fa-arrows-alt-v"></i> Flip Vertical
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters Tab -->
+                    <div id="filters-tab" class="tab-content">
+                        <div class="grid grid-cols-2 gap-3">
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="none">
+                                <div class="font-semibold">Original</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="grayscale">
+                                <div class="font-semibold">Grayscale</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="sepia">
+                                <div class="font-semibold">Sepia</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="invert">
+                                <div class="font-semibold">Invert</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="vintage">
+                                <div class="font-semibold">Vintage</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="cold">
+                                <div class="font-semibold">Cold</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="warm">
+                                <div class="font-semibold">Warm</div>
+                            </button>
+                            <button class="filter-btn bg-gray-200 hover:bg-gray-300 p-2 text-sm" data-filter="dramatic">
+                                <div class="font-semibold">Dramatic</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Canvas Area -->
+            <div class="col-span-12 lg:col-span-9">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <!-- Upload Area -->
+                    <div id="uploadArea" class="upload-area rounded-xl p-12 text-center cursor-pointer">
+                        <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                        <h3 class="text-2xl font-bold text-gray-700 mb-2">Drop your image here</h3>
+                        <p class="text-gray-500 mb-4">or click to browse</p>
+                        <input type="file" id="fileInput" accept="image/*" class="hidden">
+                        <button id="browseBtn" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition">
+                            Browse Files
+                        </button>
+                    </div>
+
+                    <!-- Canvas Area -->
+                    <div id="canvasArea" class="hidden">
+                        <div class="mb-4 flex items-center justify-between">
+                            <div class="text-sm text-gray-600">
+                                <span id="imageDimensions"></span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button id="undoBtn" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition" title="Undo">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <button id="redoBtn" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition" title="Redo">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
+                                    <i class="fas fa-sync"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-8 flex items-center justify-center" style="min-height: 400px;">
+                            <div class="canvas-container">
+                                <canvas id="canvas"></canvas>
+                                <div id="cropOverlay" class="crop-overlay">
+                                    <div class="crop-handle nw"></div>
+                                    <div class="crop-handle ne"></div>
+                                    <div class="crop-handle sw"></div>
+                                    <div class="crop-handle se"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Modal -->
+    <div id="downloadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold mb-6">Download Image</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 mb-2 block">Format</label>
+                    <select id="downloadFormat" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                        <option value="webp">WebP</option>
+                    </select>
+                </div>
+                <div id="qualityContainer">
+                    <label class="text-sm font-semibold text-gray-700 mb-2 block">Quality</label>
+                    <input type="range" id="downloadQuality" min="1" max="100" value="90" class="w-full">
+                    <span id="qualityValue" class="text-xs text-gray-500">90%</span>
+                </div>
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 mb-2 block">File Name</label>
+                    <input type="text" id="downloadFileName" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="edited-image">
+                </div>
+                <div class="flex space-x-3 mt-6">
+                    <button id="confirmDownload" class="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition font-semibold">
+                        <i class="fas fa-download mr-2"></i>Download
+                    </button>
+                    <button id="cancelDownload" class="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-400 transition font-semibold">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        const state = {
+            originalImage: null,
+            canvas: null,
+            ctx: null,
+            currentImage: null,
+            history: [],
+            historyStep: -1,
+            isCropping: false,
+            cropData: { x: 0, y: 0, width: 0, height: 0 },
+            adjustments: {
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                blur: 0,
+                hue: 0
+            },
+            currentFilter: 'none',
+            rotation: 0,
+            flipH: false,
+            flipV: false
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            state.canvas = document.getElementById('canvas');
+            state.ctx = state.canvas.getContext('2d', { willReadFrequently: true });
+            
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // File Upload
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const browseBtn = document.getElementById('browseBtn');
+
+            browseBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    loadImage(files[0]);
+                }
+            });
+
+            // Tool Tabs
+            document.querySelectorAll('.tool-btn[data-tab]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tab = this.dataset.tab;
+                    switchTab(tab);
+                });
+            });
+
+            // Adjustments
+            setupAdjustmentSliders();
+
+            // Crop
+            document.getElementById('applyCrop').addEventListener('click', applyCrop);
+            document.getElementById('cancelCrop').addEventListener('click', cancelCrop);
+            setupCropHandlers();
+
+            // Resize
+            document.getElementById('applyResize').addEventListener('click', applyResize);
+            document.getElementById('resizeWidth').addEventListener('input', handleResizeInput);
+            document.getElementById('resizeHeight').addEventListener('input', handleResizeInput);
+
+            // Rotate & Flip
+            document.getElementById('rotate90').addEventListener('click', () => rotate(90));
+            document.getElementById('rotate-90').addEventListener('click', () => rotate(-90));
+            document.getElementById('flipH').addEventListener('click', () => flip('horizontal'));
+            document.getElementById('flipV').addEventListener('click', () => flip('vertical'));
+
+            // Filters
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const filter = this.dataset.filter;
+                    applyFilter(filter);
+                });
+            });
+
+            // Download
+            document.getElementById('downloadBtn').addEventListener('click', showDownloadModal);
+            document.getElementById('confirmDownload').addEventListener('click', downloadImage);
+            document.getElementById('cancelDownload').addEventListener('click', hideDownloadModal);
+            document.getElementById('downloadFormat').addEventListener('change', handleFormatChange);
+            document.getElementById('downloadQuality').addEventListener('input', function() {
+                document.getElementById('qualityValue').textContent = this.value + '%';
+            });
+
+            // Reset
+            document.getElementById('resetBtn').addEventListener('click', resetToOriginal);
+            document.getElementById('resetAdjustments').addEventListener('click', resetAdjustments);
+
+            // Undo/Redo
+            document.getElementById('undoBtn').addEventListener('click', undo);
+            document.getElementById('redoBtn').addEventListener('click', redo);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                loadImage(file);
+            }
+        }
+
+        function loadImage(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    state.originalImage = img;
+                    state.currentImage = img;
+                    initCanvas(img);
+                    document.getElementById('uploadArea').classList.add('hidden');
+                    document.getElementById('canvasArea').classList.remove('hidden');
+                    saveState();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function initCanvas(img) {
+            const maxWidth = 800;
+            const maxHeight = 600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                width = width * ratio;
+                height = height * ratio;
+            }
+
+            state.canvas.width = width;
+            state.canvas.height = height;
+            
+            drawCanvas();
+            updateDimensions();
+        }
+
+        function drawCanvas() {
+            state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+            
+            // Apply transformations
+            state.ctx.save();
+            
+            // Center point for transformations
+            const centerX = state.canvas.width / 2;
+            const centerY = state.canvas.height / 2;
+            
+            state.ctx.translate(centerX, centerY);
+            
+            // Apply rotation
+            if (state.rotation !== 0) {
+                state.ctx.rotate((state.rotation * Math.PI) / 180);
+            }
+            
+            // Apply flip
+            const scaleX = state.flipH ? -1 : 1;
+            const scaleY = state.flipV ? -1 : 1;
+            state.ctx.scale(scaleX, scaleY);
+            
+            state.ctx.translate(-centerX, -centerY);
+            
+            // Draw image
+            state.ctx.drawImage(state.currentImage, 0, 0, state.canvas.width, state.canvas.height);
+            
+            state.ctx.restore();
+            
+            // Apply filters and adjustments
+            applyAdjustments();
+        }
+
+        function applyAdjustments() {
+            const imageData = state.ctx.getImageData(0, 0, state.canvas.width, state.canvas.height);
+            const data = imageData.data;
+            
+            const brightness = state.adjustments.brightness;
+            const contrast = state.adjustments.contrast;
+            const saturation = state.adjustments.saturation;
+            const hue = state.adjustments.hue;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+                
+                // Brightness
+                r += brightness * 2.55;
+                g += brightness * 2.55;
+                b += brightness * 2.55;
+                
+                // Contrast
+                const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+                r = factor * (r - 128) + 128;
+                g = factor * (g - 128) + 128;
+                b = factor * (b - 128) + 128;
+                
+                // Saturation
+                const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                const satFactor = (saturation + 100) / 100;
+                r = gray + (r - gray) * satFactor;
+                g = gray + (g - gray) * satFactor;
+                b = gray + (b - gray) * satFactor;
+                
+                // Hue rotation
+                if (hue !== 0) {
+                    const [nr, ng, nb] = rotateHue(r, g, b, hue);
+                    r = nr;
+                    g = ng;
+                    b = nb;
+                }
+                
+                data[i] = Math.max(0, Math.min(255, r));
+                data[i + 1] = Math.max(0, Math.min(255, g));
+                data[i + 2] = Math.max(0, Math.min(255, b));
+            }
+            
+            // Apply blur if needed
+            if (state.adjustments.blur > 0) {
+                state.ctx.putImageData(imageData, 0, 0);
+                stackBlur(state.canvas, state.adjustments.blur);
+            } else {
+                state.ctx.putImageData(imageData, 0, 0);
+            }
+            
+            // Apply current filter
+            applyFilterEffect(state.currentFilter);
+        }
+
+        function rotateHue(r, g, b, angle) {
+            const cosA = Math.cos(angle * Math.PI / 180);
+            const sinA = Math.sin(angle * Math.PI / 180);
+            
+            const matrix = [
+                cosA + (1.0 - cosA) / 3.0,
+                1./3. * (1.0 - cosA) - Math.sqrt(1./3.) * sinA,
+                1./3. * (1.0 - cosA) + Math.sqrt(1./3.) * sinA,
+                1./3. * (1.0 - cosA) + Math.sqrt(1./3.) * sinA,
+                cosA + 1./3. * (1.0 - cosA),
+                1./3. * (1.0 - cosA) - Math.sqrt(1./3.) * sinA,
+                1./3. * (1.0 - cosA) - Math.sqrt(1./3.) * sinA,
+                1./3. * (1.0 - cosA) + Math.sqrt(1./3.) * sinA,
+                cosA + 1./3. * (1.0 - cosA)
+            ];
+            
+            const nr = r * matrix[0] + g * matrix[1] + b * matrix[2];
+            const ng = r * matrix[3] + g * matrix[4] + b * matrix[5];
+            const nb = r * matrix[6] + g * matrix[7] + b * matrix[8];
+            
+            return [nr, ng, nb];
+        }
+
+        function stackBlur(canvas, radius) {
+            const context = canvas.getContext('2d');
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            
+            const pixels = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            let rsum, gsum, bsum, x, y, i, p, yp, yi, yw;
+            const wm = width - 1;
+            const hm = height - 1;
+            const rad1 = radius + 1;
+            const divSum = (rad1 * (rad1 + 1)) / 2;
+            
+            const r = [];
+            const g = [];
+            const b = [];
+            
+            const vmin = [];
+            const vmax = [];
+            
+            let iterations = 2;
+            
+            while (iterations-- > 0) {
+                yw = yi = 0;
+                
+                for (y = 0; y < height; y++) {
+                    rsum = pixels[yw] * rad1;
+                    gsum = pixels[yw + 1] * rad1;
+                    bsum = pixels[yw + 2] * rad1;
+                    
+                    for (i = 1; i <= radius; i++) {
+                        p = yw + (((i > wm ? wm : i)) << 2);
+                        rsum += pixels[p++];
+                        gsum += pixels[p++];
+                        bsum += pixels[p++];
+                    }
+                    
+                    for (x = 0; x < width; x++) {
+                        pixels[yi] = (rsum / divSum) >> 0;
+                        pixels[yi + 1] = (gsum / divSum) >> 0;
+                        pixels[yi + 2] = (bsum / divSum) >> 0;
+                        
+                        if (y == 0) {
+                            vmin[x] = ((p = x + rad1) < wm ? p : wm) << 2;
+                            vmax[x] = ((p = x - radius) > 0 ? p << 2 : 0);
+                        }
+                        
+                        p = yw + vmin[x];
+                        rsum += pixels[p++];
+                        gsum += pixels[p++];
+                        bsum += pixels[p++];
+                        
+                        p = yw + vmax[x];
+                        rsum -= pixels[p++];
+                        gsum -= pixels[p++];
+                        bsum -= pixels[p++];
+                        
+                        yi += 4;
+                    }
+                    yw += (width << 2);
+                }
+            }
+            
+            context.putImageData(imageData, 0, 0);
+        }
+
+        function applyFilterEffect(filter) {
+            const imageData = state.ctx.getImageData(0, 0, state.canvas.width, state.canvas.height);
+            const data = imageData.data;
+            
+            switch(filter) {
+                case 'grayscale':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+                        data[i] = data[i + 1] = data[i + 2] = gray;
+                    }
+                    break;
+                    
+                case 'sepia':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i], g = data[i + 1], b = data[i + 2];
+                        data[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+                        data[i + 1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+                        data[i + 2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+                    }
+                    break;
+                    
+                case 'invert':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = 255 - data[i];
+                        data[i + 1] = 255 - data[i + 1];
+                        data[i + 2] = 255 - data[i + 2];
+                    }
+                    break;
+                    
+                case 'vintage':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i], g = data[i + 1], b = data[i + 2];
+                        data[i] = Math.min(255, r * 1.2);
+                        data[i + 1] = Math.min(255, g * 1.0);
+                        data[i + 2] = Math.min(255, b * 0.7);
+                    }
+                    break;
+                    
+                case 'cold':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = Math.max(0, data[i] - 20);
+                        data[i + 2] = Math.min(255, data[i + 2] + 20);
+                    }
+                    break;
+                    
+                case 'warm':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = Math.min(255, data[i] + 20);
+                        data[i + 2] = Math.max(0, data[i + 2] - 20);
+                    }
+                    break;
+                    
+                case 'dramatic':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i], g = data[i + 1], b = data[i + 2];
+                        const factor = 1.5;
+                        data[i] = Math.min(255, factor * (r - 128) + 128);
+                        data[i + 1] = Math.min(255, factor * (g - 128) + 128);
+                        data[i + 2] = Math.min(255, factor * (b - 128) + 128);
+                    }
+                    break;
+            }
+            
+            if (filter !== 'none') {
+                state.ctx.putImageData(imageData, 0, 0);
+            }
+        }
+
+        function setupAdjustmentSliders() {
+            const sliders = ['brightness', 'contrast', 'saturation', 'blur', 'hue'];
+            
+            sliders.forEach(slider => {
+                const element = document.getElementById(slider);
+                const valueDisplay = document.getElementById(slider + 'Value');
+                
+                element.addEventListener('input', function() {
+                    const value = parseFloat(this.value);
+                    state.adjustments[slider] = value;
+                    valueDisplay.textContent = value;
+                    drawCanvas();
+                });
+            });
+        }
+
+        function resetAdjustments() {
+            state.adjustments = {
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                blur: 0,
+                hue: 0
+            };
+            
+            document.getElementById('brightness').value = 0;
+            document.getElementById('contrast').value = 0;
+            document.getElementById('saturation').value = 0;
+            document.getElementById('blur').value = 0;
+            document.getElementById('hue').value = 0;
+            
+            document.getElementById('brightnessValue').textContent = '0';
+            document.getElementById('contrastValue').textContent = '0';
+            document.getElementById('saturationValue').textContent = '0';
+            document.getElementById('blurValue').textContent = '0';
+            document.getElementById('hueValue').textContent = '0';
+            
+            drawCanvas();
+        }
+
+        // Crop functionality
+        let cropOverlay, isDragging = false, isResizing = false, resizeHandle = null;
+        let startX, startY, offsetX, offsetY;
+        let isDrawing = false;
+
+        function setupCropHandlers() {
+            cropOverlay = document.getElementById('cropOverlay');
+            const canvas = state.canvas;
+
+            canvas.addEventListener('pointerdown', startCrop);
+            cropOverlay.addEventListener('pointerdown', startCrop);
+
+            window.addEventListener('pointermove', doCrop);
+            window.addEventListener('pointerup', endCrop);
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function getCanvasCoords(e) {
+            const rect = state.canvas.getBoundingClientRect();
+            const scaleX = state.canvas.width / rect.width;
+            const scaleY = state.canvas.height / rect.height;
+            const x = clamp((e.clientX - rect.left) * scaleX, 0, state.canvas.width);
+            const y = clamp((e.clientY - rect.top) * scaleY, 0, state.canvas.height);
+            return { x, y, rect, scaleX, scaleY };
+        }
+
+        function startCrop(e) {
+            if (!state.isCropping) return;
+
+            const target = e.target;
+            const { x, y } = getCanvasCoords(e);
+
+            if (target.classList && target.classList.contains('crop-handle')) {
+                isResizing = true;
+                resizeHandle = ['nw', 'ne', 'sw', 'se'].find(cls => target.classList.contains(cls));
+                startX = x;
+                startY = y;
+                e.preventDefault();
+                return;
+            }
+
+            const insideExisting = state.cropData.width > 0 && state.cropData.height > 0 &&
+                x >= state.cropData.x && x <= state.cropData.x + state.cropData.width &&
+                y >= state.cropData.y && y <= state.cropData.y + state.cropData.height;
+
+            if (insideExisting) {
+                isDragging = true;
+                offsetX = x - state.cropData.x;
+                offsetY = y - state.cropData.y;
+            } else {
+                isDrawing = true;
+                startX = x;
+                startY = y;
+                state.cropData = { x, y, width: 0, height: 0 };
+                cropOverlay.style.display = 'block';
+            }
+
+            e.preventDefault();
+        }
+
+        function doCrop(e) {
+            if (!state.isCropping) return;
+            if (!isDrawing && !isDragging && !isResizing) return;
+
+            const { x, y } = getCanvasCoords(e);
+
+            if (isResizing) {
+                resizeCropArea(x, y);
+            } else if (isDragging) {
+                moveCropArea(x, y);
+            } else if (isDrawing) {
+                drawNewCrop(x, y);
+            }
+
+            e.preventDefault();
+        }
+
+        function endCrop(e) {
+            if (!state.isCropping) return;
+
+            if (isDrawing || isDragging || isResizing) {
+                normalizeCropData();
+                updateCropOverlay();
+            }
+
+            isDrawing = false;
+            isDragging = false;
+            isResizing = false;
+            resizeHandle = null;
+
+            if (e) e.preventDefault();
+        }
+
+        function drawNewCrop(x, y) {
+            let width = x - startX;
+            let height = y - startY;
+
+            const aspectInput = document.getElementById('aspectRatio');
+            if (aspectInput && aspectInput.value !== 'free') {
+                const ratio = getRatioValue(aspectInput.value);
+                if (Math.abs(width) / Math.abs(height || 1) > ratio) {
+                    height = Math.sign(height || 1) * Math.abs(width) / ratio;
+                } else {
+                    width = Math.sign(width || 1) * Math.abs(height) * ratio;
+                }
+            }
+
+            const endX = clamp(startX + width, 0, state.canvas.width);
+            const endY = clamp(startY + height, 0, state.canvas.height);
+
+            state.cropData = {
+                x: Math.min(startX, endX),
+                y: Math.min(startY, endY),
+                width: Math.abs(endX - startX),
+                height: Math.abs(endY - startY)
+            };
+
+            updateCropOverlay();
+        }
+
+        function moveCropArea(x, y) {
+            const width = state.cropData.width;
+            const height = state.cropData.height;
+
+            let newX = x - offsetX;
+            let newY = y - offsetY;
+
+            newX = clamp(newX, 0, state.canvas.width - width);
+            newY = clamp(newY, 0, state.canvas.height - height);
+
+            state.cropData.x = newX;
+            state.cropData.y = newY;
+
+            updateCropOverlay();
+        }
+
+        function resizeCropArea(pointerX, pointerY) {
+            if (!resizeHandle) return;
+
+            pointerX = clamp(pointerX, 0, state.canvas.width);
+            pointerY = clamp(pointerY, 0, state.canvas.height);
+
+            let anchorX, anchorY;
+
+            switch (resizeHandle) {
+                case 'nw':
+                    anchorX = state.cropData.x + state.cropData.width;
+                    anchorY = state.cropData.y + state.cropData.height;
+                    break;
+                case 'ne':
+                    anchorX = state.cropData.x;
+                    anchorY = state.cropData.y + state.cropData.height;
+                    break;
+                case 'sw':
+                    anchorX = state.cropData.x + state.cropData.width;
+                    anchorY = state.cropData.y;
+                    break;
+                case 'se':
+                    anchorX = state.cropData.x;
+                    anchorY = state.cropData.y;
+                    break;
+            }
+
+            let newX = Math.min(pointerX, anchorX);
+            let newY = Math.min(pointerY, anchorY);
+            let newWidth = Math.abs(anchorX - pointerX);
+            let newHeight = Math.abs(anchorY - pointerY);
+
+            ({ newX, newY, newWidth, newHeight } = enforceAspectRatio(newX, newY, newWidth, newHeight, anchorX, anchorY, pointerX, pointerY));
+
+            state.cropData = {
+                x: newX,
+                y: newY,
+                width: newWidth,
+                height: newHeight
+            };
+
+            updateCropOverlay();
+        }
+
+        function enforceAspectRatio(newX, newY, newWidth, newHeight, anchorX, anchorY, pointerX, pointerY) {
+            const aspectInput = document.getElementById('aspectRatio');
+            if (!aspectInput || aspectInput.value === 'free' || newWidth === 0 || newHeight === 0) {
+                return { newX, newY, newWidth, newHeight };
+            }
+
+            const ratio = getRatioValue(aspectInput.value);
+
+            if (newWidth / newHeight > ratio) {
+                newWidth = newHeight * ratio;
+            } else {
+                newHeight = newWidth / ratio;
+            }
+
+            if (pointerX < anchorX) {
+                newX = anchorX - newWidth;
+            } else {
+                newX = anchorX;
+            }
+
+            if (pointerY < anchorY) {
+                newY = anchorY - newHeight;
+            } else {
+                newY = anchorY;
+            }
+
+            newX = clamp(newX, 0, state.canvas.width - newWidth);
+            newY = clamp(newY, 0, state.canvas.height - newHeight);
+
+            return { newX, newY, newWidth, newHeight };
+        }
+
+        function normalizeCropData() {
+            if (!state.cropData) return;
+
+            if (state.cropData.width < 0) {
+                state.cropData.x += state.cropData.width;
+                state.cropData.width = Math.abs(state.cropData.width);
+            }
+
+            if (state.cropData.height < 0) {
+                state.cropData.y += state.cropData.height;
+                state.cropData.height = Math.abs(state.cropData.height);
+            }
+        }
+
+        function getAspectRatio(ratio) {
+            const parts = ratio.split(':');
+            return [parseInt(parts[0]), parseInt(parts[1])];
+        }
+
+        function getRatioValue(ratio) {
+            const [w, h] = getAspectRatio(ratio);
+            return w / h;
+        }
+
+        function updateCropOverlay() {
+            if (!cropOverlay) return;
+
+            if (!state.isCropping || state.cropData.width <= 0 || state.cropData.height <= 0) {
+                cropOverlay.style.display = state.isCropping ? 'none' : 'none';
+                cropOverlay.style.width = '0px';
+                cropOverlay.style.height = '0px';
+                return;
+            }
+
+            const rect = state.canvas.getBoundingClientRect();
+            const scaleX = rect.width / state.canvas.width;
+            const scaleY = rect.height / state.canvas.height;
+
+            cropOverlay.style.display = 'block';
+            cropOverlay.style.left = state.cropData.x * scaleX + 'px';
+            cropOverlay.style.top = state.cropData.y * scaleY + 'px';
+            cropOverlay.style.width = state.cropData.width * scaleX + 'px';
+            cropOverlay.style.height = state.cropData.height * scaleY + 'px';
+        }
+
+        function applyCrop() {
+            if (state.cropData.width <= 0 || state.cropData.height <= 0) {
+                alert('Please select a crop area');
+                return;
+            }
+            
+            const imageData = state.ctx.getImageData(
+                state.cropData.x,
+                state.cropData.y,
+                state.cropData.width,
+                state.cropData.height
+            );
+            
+            state.canvas.width = state.cropData.width;
+            state.canvas.height = state.cropData.height;
+            state.ctx.putImageData(imageData, 0, 0);
+            
+            // Update current image
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            tempCanvas.getContext('2d').drawImage(state.canvas, 0, 0);
+            
+            const img = new Image();
+            img.onload = () => {
+                state.currentImage = img;
+                cancelCrop();
+                saveState();
+                updateDimensions();
+            };
+            img.src = tempCanvas.toDataURL();
+        }
+
+        function cancelCrop() {
+            state.isCropping = false;
+            state.cropData = { x: 0, y: 0, width: 0, height: 0 };
+            isDrawing = false;
+            isDragging = false;
+            isResizing = false;
+            resizeHandle = null;
+
+            if (cropOverlay) {
+                cropOverlay.style.display = 'none';
+                cropOverlay.style.width = '0px';
+                cropOverlay.style.height = '0px';
+            }
+        }
+
+        // Resize functionality
+        let originalRatio = 1;
+
+        function handleResizeInput(e) {
+            const maintainAspect = document.getElementById('maintainAspect').checked;
+            
+            if (!maintainAspect) return;
+            
+            if (!originalRatio) {
+                originalRatio = state.canvas.width / state.canvas.height;
+            }
+            
+            if (e.target.id === 'resizeWidth') {
+                const width = parseInt(e.target.value);
+                document.getElementById('resizeHeight').value = Math.round(width / originalRatio);
+            } else {
+                const height = parseInt(e.target.value);
+                document.getElementById('resizeWidth').value = Math.round(height * originalRatio);
+            }
+        }
+
+        function applyResize() {
+            const width = parseInt(document.getElementById('resizeWidth').value);
+            const height = parseInt(document.getElementById('resizeHeight').value);
+            
+            if (!width || !height || width <= 0 || height <= 0) {
+                alert('Please enter valid dimensions');
+                return;
+            }
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCtx.drawImage(state.canvas, 0, 0, width, height);
+            
+            state.canvas.width = width;
+            state.canvas.height = height;
+            state.ctx.drawImage(tempCanvas, 0, 0);
+            
+            const img = new Image();
+            img.onload = () => {
+                state.currentImage = img;
+                saveState();
+                updateDimensions();
+            };
+            img.src = tempCanvas.toDataURL();
+        }
+
+        // Rotate and Flip
+        function rotate(degrees) {
+            state.rotation = (state.rotation + degrees) % 360;
+            
+            // Swap canvas dimensions for 90/-90 degree rotations
+            if (Math.abs(degrees) === 90) {
+                const tempWidth = state.canvas.width;
+                state.canvas.width = state.canvas.height;
+                state.canvas.height = tempWidth;
+            }
+            
+            drawCanvas();
+            saveState();
+        }
+
+        function flip(direction) {
+            if (direction === 'horizontal') {
+                state.flipH = !state.flipH;
+            } else {
+                state.flipV = !state.flipV;
+            }
+            
+            drawCanvas();
+            saveState();
+        }
+
+        // Filter functionality
+        function applyFilter(filter) {
+            state.currentFilter = filter;
+            drawCanvas();
+            saveState();
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update button states
+            document.querySelectorAll('.tool-btn[data-tab]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.tool-btn[data-tab="${tabName}"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Handle crop mode
+            if (tabName === 'crop') {
+                state.isCropping = true;
+                // Initialize crop area
+                const w = state.canvas.width * 0.8;
+                const h = state.canvas.height * 0.8;
+                state.cropData = {
+                    x: (state.canvas.width - w) / 2,
+                    y: (state.canvas.height - h) / 2,
+                    width: w,
+                    height: h
+                };
+                updateCropOverlay();
+                cropOverlay.style.display = 'block';
+            } else {
+                cancelCrop();
+            }
+            
+            // Update resize inputs
+            if (tabName === 'resize') {
+                document.getElementById('resizeWidth').value = state.canvas.width;
+                document.getElementById('resizeHeight').value = state.canvas.height;
+                originalRatio = state.canvas.width / state.canvas.height;
+            }
+        }
+
+        // History management
+        function saveState() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            tempCanvas.getContext('2d').drawImage(state.canvas, 0, 0);
+            
+            // Remove any states after current step
+            state.history = state.history.slice(0, state.historyStep + 1);
+            
+            // Add new state
+            state.history.push({
+                imageData: tempCanvas.toDataURL(),
+                adjustments: { ...state.adjustments },
+                filter: state.currentFilter,
+                rotation: state.rotation,
+                flipH: state.flipH,
+                flipV: state.flipV,
+                width: state.canvas.width,
+                height: state.canvas.height
+            });
+            
+            state.historyStep++;
+            
+            // Limit history to 20 states
+            if (state.history.length > 20) {
+                state.history.shift();
+                state.historyStep--;
+            }
+        }
+
+        function undo() {
+            if (state.historyStep > 0) {
+                state.historyStep--;
+                loadState(state.history[state.historyStep]);
+            }
+        }
+
+        function redo() {
+            if (state.historyStep < state.history.length - 1) {
+                state.historyStep++;
+                loadState(state.history[state.historyStep]);
+            }
+        }
+
+        function loadState(historyState) {
+            const img = new Image();
+            img.onload = () => {
+                state.canvas.width = historyState.width;
+                state.canvas.height = historyState.height;
+                state.currentImage = img;
+                state.adjustments = { ...historyState.adjustments };
+                state.currentFilter = historyState.filter;
+                state.rotation = historyState.rotation;
+                state.flipH = historyState.flipH;
+                state.flipV = historyState.flipV;
+                
+                // Update UI
+                document.getElementById('brightness').value = state.adjustments.brightness;
+                document.getElementById('contrast').value = state.adjustments.contrast;
+                document.getElementById('saturation').value = state.adjustments.saturation;
+                document.getElementById('blur').value = state.adjustments.blur;
+                document.getElementById('hue').value = state.adjustments.hue;
+                
+                document.getElementById('brightnessValue').textContent = state.adjustments.brightness;
+                document.getElementById('contrastValue').textContent = state.adjustments.contrast;
+                document.getElementById('saturationValue').textContent = state.adjustments.saturation;
+                document.getElementById('blurValue').textContent = state.adjustments.blur;
+                document.getElementById('hueValue').textContent = state.adjustments.hue;
+                
+                drawCanvas();
+                updateDimensions();
+            };
+            img.src = historyState.imageData;
+        }
+
+        function resetToOriginal() {
+            if (!state.originalImage) return;
+            
+            state.currentImage = state.originalImage;
+            state.adjustments = {
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                blur: 0,
+                hue: 0
+            };
+            state.currentFilter = 'none';
+            state.rotation = 0;
+            state.flipH = false;
+            state.flipV = false;
+            
+            initCanvas(state.originalImage);
+            resetAdjustments();
+            saveState();
+        }
+
+        // Download functionality
+        function showDownloadModal() {
+            if (!state.currentImage) {
+                alert('Please load an image first');
+                return;
+            }
+            document.getElementById('downloadModal').classList.remove('hidden');
+            document.getElementById('downloadModal').classList.add('flex');
+        }
+
+        function hideDownloadModal() {
+            document.getElementById('downloadModal').classList.add('hidden');
+            document.getElementById('downloadModal').classList.remove('flex');
+        }
+
+        function handleFormatChange() {
+            const format = document.getElementById('downloadFormat').value;
+            const qualityContainer = document.getElementById('qualityContainer');
+            
+            if (format === 'png') {
+                qualityContainer.style.display = 'none';
+            } else {
+                qualityContainer.style.display = 'block';
+            }
+        }
+
+        function downloadImage() {
+            const format = document.getElementById('downloadFormat').value;
+            const quality = document.getElementById('downloadQuality').value / 100;
+            const fileName = document.getElementById('downloadFileName').value || 'edited-image';
+            
+            let mimeType = 'image/png';
+            let extension = 'png';
+            
+            switch(format) {
+                case 'jpeg':
+                    mimeType = 'image/jpeg';
+                    extension = 'jpg';
+                    break;
+                case 'webp':
+                    mimeType = 'image/webp';
+                    extension = 'webp';
+                    break;
+            }
+            
+            state.canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${fileName}.${extension}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                hideDownloadModal();
+            }, mimeType, quality);
+        }
+
+        function updateDimensions() {
+            document.getElementById('imageDimensions').textContent = 
+                `${state.canvas.width} × ${state.canvas.height} px`;
+        }
+    </script>
+</body>
+</html>
